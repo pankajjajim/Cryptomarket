@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crypto Market</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="chart-utils.js"></script>
+</head>
+
+<body class="bg-black text-gray-100">
+    <!-- Navbar -->
+  <nav class="bg-black shadow-md">
+    <div class="max-w-7xl mx-auto px-4">
+      <div class="flex justify-between items-center h-16">
+
+        <!-- Logo -->
+        <a href="index.html" class="flex items-center space-x-2">
+          <img src="https://dappgambl.com/wp-content/uploads/2023/04/crypto-market.jpg" alt="Logo" class="h-8 w-8 object-cover rounded-full"/>
+          <span class="text-xl font-bold text-blue-600">Crypto Market</span>
+        </a>
+
+        <!-- Menu -->
+        <div class="hidden md:flex space-x-6 font-medium">
+          <a href="index.html" class="text-gray-300 hover:text-blue-400">Top</a>
+          <a href="Trending.html" class="text-gray-300 hover:text-blue-400">Trending</a>
+          <a href="Most Visited.html" class="text-gray-300 hover:text-blue-400">Most Visited</a>
+          <a href="New.html" class="text-gray-300 font-semibold hover:text-blue-400">New</a>
+          <a href="Gainers.html" class="text-gray-300 hover:text-blue-400">Gainers</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-7xl mx-auto mt-8 px-4">
+    <div class="bg-gray-900 shadow-md rounded-lg overflow-x-auto border border-gray-800">
+
+      <table class="w-full text-sm text-left">
+      <thead class="bg-gray-800 text-gray-200 uppercase text-xs">
+          <tr>
+             <th class="px-6 py-3">#</th>
+             <th class="px-6 py-4">Name</th>
+             <th class="px-6 py-4">Symbol</th>
+             <th class="px-6 py-4">Price</th>
+             <th class="px-6 py-4">1h</th>
+             <th class="px-6 py-4">24h</th>
+             <th class="px-6 py-4">7d</th>
+             <th class="px-6 py-4">Market Cap</th>
+             <th class="px-6 py-4">Volume</th>
+             <th class="px-6 py-4">Circulating Supply</th> 
+             <th class="px-6 py-4">Buy</th>
+          </tr>
+        </thead>
+        <tbody id="crypto-table-body" class="divide-y divide-gray-800">
+          <tr>
+            <td colspan="10" class="px-6 py-8 text-center text-gray-500">Loading...</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div>
+  </div>
+
+  <div id="coinModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
+    <div class="bg-gray-900 text-gray-100 rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-gray-800" onclick="event.stopPropagation()">
+      <div class="sticky top-0 bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between z-10 rounded-t-xl">
+        <div class="flex items-center gap-3">
+          <div id="modalCoinIcon" class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-lg font-bold text-gray-600"></div>
+          <div>
+            <h2 id="modalTitle" class="text-xl font-bold text-gray-100">Name SYMBOL</h2>
+            <p id="modalRank" class="text-sm text-gray-500">#1</p>
+          </div>
+        </div>
+        <button type="button" id="closeModal" class="p-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-gray-200" aria-label="Close">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="modalContent" class="p-6"></div>
+    </div>
+  </div>
+
+  <script>
+    const COINLORE_API_URL = 'https://api.coinlore.net/api/tickers/';
+
+    function formatNumber(num) {
+      if (num >= 1e12) return '$' + (num / 1e12).toFixed(2) + 'T';
+      if (num >= 1e9) return '$' + (num / 1e9).toFixed(2) + 'B';
+      if (num >= 1e6) return '$' + (num / 1e6).toFixed(2) + 'M';
+      if (num >= 1e3) return '$' + (num / 1e3).toFixed(2) + 'K';
+      return '$' + (num || 0).toFixed(2);
+    }
+
+    function formatPrice(price) {
+      if (price < 0.01) return '$' + price.toFixed(6);
+      if (price < 1) return '$' + price.toFixed(4);
+      return '$' + price.toFixed(2);
+    }
+
+    function getChangeColor(change) {
+      if (change > 0) return 'text-green-600';
+      if (change < 0) return 'text-red-600';
+      return 'text-gray-600';
+    }
+
+    function showCoinDetails(crypto) {
+      var modal = document.getElementById('coinModal'), titleEl = document.getElementById('modalTitle'), rankEl = document.getElementById('modalRank'), iconEl = document.getElementById('modalCoinIcon'), content = document.getElementById('modalContent');
+      var price = parseFloat(crypto.price_usd), change1h = parseFloat(crypto.percent_change_1h), change24h = parseFloat(crypto.percent_change_24h), change7d = parseFloat(crypto.percent_change_7d), marketCap = parseFloat(crypto.market_cap_usd), volume = parseFloat(crypto.volume24), supply = parseFloat(crypto.csupply) || 0;
+      var volMktCap = marketCap > 0 ? ((volume / marketCap) * 100).toFixed(2) : '—', symbol = (crypto.symbol || '?').toUpperCase(), name = crypto.name || 'N/A';
+      titleEl.textContent = name + ' ' + symbol; rankEl.textContent = '#' + (crypto.rank || '-'); iconEl.textContent = symbol.charAt(0);
+      window.lastDetailCrypto = crypto;
+      var chartHtml = renderMarketChart(price, change24h, volume, symbol, '24h');
+      content.innerHTML = '<div class="space-y-6"><div><p class="text-3xl font-bold text-gray-100">' + formatPrice(price) + '</p><p class="mt-1 text-sm ' + getChangeColor(change24h) + '">' + (change24h > 0 ? '+' : '') + (change24h || 0).toFixed(2) + '% (24h)</p></div><div class="grid grid-cols-2 sm:grid-cols-3 gap-3"><div class="bg-gray-800 rounded-lg p-4 border border-gray-700"><p class="text-xs text-gray-500 uppercase tracking-wide">Market cap</p><p class="font-semibold text-gray-100 mt-0.5">' + formatNumber(marketCap) + '</p></div><div class="bg-gray-800 rounded-lg p-4 border border-gray-700"><p class="text-xs text-gray-500 uppercase tracking-wide">Volume (24h)</p><p class="font-semibold text-gray-100 mt-0.5">' + formatNumber(volume) + '</p></div><div class="bg-gray-800 rounded-lg p-4 border border-gray-700"><p class="text-xs text-gray-500 uppercase tracking-wide">Vol/Mkt Cap (24h)</p><p class="font-semibold text-gray-100 mt-0.5">' + volMktCap + '%</p></div><div class="bg-gray-800 rounded-lg p-4 border border-gray-700"><p class="text-xs text-gray-500 uppercase tracking-wide">Circulating supply</p><p class="font-semibold text-gray-100 mt-0.5">' + (supply ? supply.toLocaleString() + ' ' + symbol : '—') + '</p></div><div class="bg-gray-800 rounded-lg p-4 border border-gray-700"><p class="text-xs text-gray-500 uppercase tracking-wide">1h</p><p class="font-semibold mt-0.5 ' + getChangeColor(change1h) + '">' + (change1h > 0 ? '+' : '') + (change1h || 0).toFixed(2) + '%</p></div><div class="bg-gray-800 rounded-lg p-4 border border-gray-700"><p class="text-xs text-gray-500 uppercase tracking-wide">7d</p><p class="font-semibold mt-0.5 ' + getChangeColor(change7d) + '">' + (change7d > 0 ? '+' : '') + (change7d || 0).toFixed(2) + '%</p></div></div><div id="detailChartWrap">' + chartHtml + '</div></div>';
+      modal.classList.remove('hidden'); modal.classList.add('flex'); modal.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden';
+    }
+    function closeCoinModal() {
+      const modal = document.getElementById('coinModal');
+      modal.classList.add('hidden'); modal.classList.remove('flex'); modal.setAttribute('aria-hidden', 'true'); document.body.style.overflow = '';
+    }
+
+    function handleBuy(crypto) {
+      var symbol = (crypto.symbol || '').toUpperCase();
+      var name = crypto.name || 'this coin';
+      var price = parseFloat(crypto.price_usd) || 0;
+      var qtyStr = prompt('Buy ' + name + ' (' + symbol + ')\n\nEnter quantity:', '1');
+      if (qtyStr === null) return;
+      var qty = Number(qtyStr);
+      if (!Number.isFinite(qty) || qty <= 0) {
+        alert('Please enter a valid quantity.');
+        return;
+      }
+      var total = qty * price;
+      alert('Order preview:\n\n' + qty + ' ' + symbol + '\nEstimated total: $' + total.toFixed(2) + '\n\n(Preview only — no real purchase is made)');
+    }
+
+    async function fetchNewData() {
+      try {
+        const response = await fetch(COINLORE_API_URL);
+        if (!response.ok) throw new Error('HTTP error! status: ' + response.status);
+
+        const data = await response.json();
+        if (!data.data || !Array.isArray(data.data)) throw new Error('Invalid data format');
+
+        // Sort by market cap ascending (smaller / newer coins first)
+        const sorted = [...data.data].sort((a, b) => {
+          const capA = parseFloat(a.market_cap_usd) || 0;
+          const capB = parseFloat(b.market_cap_usd) || 0;
+          return capA - capB;
+        });
+
+        displayCryptoData(sorted);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        document.getElementById('crypto-table-body').innerHTML = `
+          <tr>
+            <td colspan="10" class="px-6 py-4 text-center text-red-500">
+              Error loading data: ${error.message}
+            </td>
+          </tr>
+        `;
+      }
+    }
+
+    function displayCryptoData(cryptos) {
+      window.cryptoList = cryptos;
+      const tbody = document.getElementById('crypto-table-body');
+      if (!cryptos.length) {
+        tbody.innerHTML = '<tr><td colspan="10" class="px-6 py-4 text-center text-gray-500">No data available</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = cryptos.map((crypto, i) => {
+        const price = parseFloat(crypto.price_usd);
+        const change1h = parseFloat(crypto.percent_change_1h);
+        const change24h = parseFloat(crypto.percent_change_24h);
+        const change7d = parseFloat(crypto.percent_change_7d);
+        const marketCap = parseFloat(crypto.market_cap_usd);
+        const volume = parseFloat(crypto.volume24);
+        const supply = parseFloat(crypto.csupply) || 0;
+
+        return `
+          <tr class="hover:bg-gray-800 transition-colors cursor-pointer" data-coin-id="${crypto.id}" role="button" tabindex="0">
+            <td class="px-6 py-4 text-gray-300">${i + 1}</td>
+            <td class="px-6 py-4">
+              <div class="flex items-center">
+                <span class="font-medium text-gray-100">${crypto.name || 'N/A'}</span>
+              </div>
+            </td>
+            <td class="px-6 py-4">
+              <span class="px-2 py-1 bg-gray-800 text-gray-200 rounded text-xs font-semibold border border-gray-700">${crypto.symbol || 'N/A'}</span>
+            </td>
+            <td class="px-6 py-4 font-semibold text-gray-100">${formatPrice(price)}</td>
+            <td class="px-6 py-4 ${getChangeColor(change1h)}">${change1h > 0 ? '+' : ''}${(change1h || 0).toFixed(2)}%</td>
+            <td class="px-6 py-4 ${getChangeColor(change24h)}">${change24h > 0 ? '+' : ''}${(change24h || 0).toFixed(2)}%</td>
+            <td class="px-6 py-4 ${getChangeColor(change7d)}">${change7d > 0 ? '+' : ''}${(change7d || 0).toFixed(2)}%</td>
+            <td class="px-6 py-4 text-gray-300">${formatNumber(marketCap)}</td>
+            <td class="px-6 py-4 text-gray-300">${formatNumber(volume)}</td>
+            <td class="px-6 py-4 text-gray-300">${supply ? supply.toLocaleString() : '-'}</td>
+            <td class="px-6 py-4">
+              <button type="button" class="buy-btn px-3 py-1.5 rounded-md bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700" data-coin-id="${crypto.id}">Buy</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchNewData();
+      setInterval(fetchNewData, 60000);
+      const tbody = document.getElementById('crypto-table-body');
+      const modal = document.getElementById('coinModal');
+      const closeBtn = document.getElementById('closeModal');
+      tbody.addEventListener('click', (e) => {
+        const buyBtn = e.target.closest('button.buy-btn');
+        if (buyBtn && window.cryptoList) {
+          e.stopPropagation();
+          const id = buyBtn.getAttribute('data-coin-id');
+          const crypto = window.cryptoList.find(c => String(c.id) === String(id));
+          if (crypto) handleBuy(crypto);
+          return;
+        }
+        const row = e.target.closest('tr[data-coin-id]');
+        if (!row || !window.cryptoList) return;
+        const id = row.getAttribute('data-coin-id');
+        const crypto = window.cryptoList.find(c => String(c.id) === String(id));
+        if (crypto) showCoinDetails(crypto);
+      });
+      tbody.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const buyBtn = e.target.closest('button.buy-btn');
+        if (buyBtn && window.cryptoList) {
+          e.preventDefault();
+          const id = buyBtn.getAttribute('data-coin-id');
+          const crypto = window.cryptoList.find(c => String(c.id) === String(id));
+          if (crypto) handleBuy(crypto);
+          return;
+        }
+        const row = e.target.closest('tr[data-coin-id]');
+        if (!row || !window.cryptoList) return;
+        e.preventDefault();
+        const id = row.getAttribute('data-coin-id');
+        const crypto = window.cryptoList.find(c => String(c.id) === String(id));
+        if (crypto) showCoinDetails(crypto);
+      });
+      closeBtn.addEventListener('click', closeCoinModal);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) { closeCoinModal(); return; }
+        var tfBtn = e.target.closest('.chart-timeframe');
+        if (tfBtn && window.lastDetailCrypto) {
+          var c = window.lastDetailCrypto;
+          var tf = tfBtn.getAttribute('data-tf');
+          var wrap = document.getElementById('detailChartWrap');
+          if (wrap) wrap.innerHTML = renderMarketChart(parseFloat(c.price_usd), parseFloat(c.percent_change_24h), parseFloat(c.volume24), (c.symbol || '?').toUpperCase(), tf);
+        }
+      });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCoinModal(); });
+    });
+  </script>
+</body>
+</html>
